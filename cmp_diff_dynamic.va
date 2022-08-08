@@ -1,0 +1,56 @@
+// VerilogA for Z_adc, cmp_diff_dynamic,veriloga
+// refer to ahdlLib/comparator
+// Dynamic comparator with differential output 
+// Author: Xueyong
+
+include "constants.vams" 
+include "disciplines.vams"
+
+module cmp_diff_dynamic(vcp, vcn, clk, qp, qn); 
+input vcp, vcn, clk;
+output qp, qn;
+voltage vcp, vcn, clk, qp, qn; 
+
+parameter real vdd = 1;
+parameter real vss = 0; 
+parameter real vth = 0.5;
+parameter real sigin_offset = 0; 
+parameter real comp_slope = 1000; 
+parameter real td = 10p from [0: inf); 
+parameter real tt = 10p from [0: inf);
+parameter integer dir_pos = +1 from [-1:1] exclude 0; 
+parameter integer dir_neg - -1 from [-1:1] exclude 0; 
+parameter integer dir = 0;
+
+//internal signal 
+integer i_clk; 
+integer i_qp; 
+integer i_qn; 
+
+analog begin
+  @(initial_step) begin 
+    if (vdd <= vss) begin
+      $display("Range specification error. sigout_high = (%E) less than sigout_low = (%E).\n", vdd, vss); 
+      $finish;
+    end
+  end
+
+  i_clk = V(clk)>vth ? 1 : 0;
+  @(cross(i_clk - vth, dir_pos)) begin//compare 
+    i_qp = 0.5*(vdd - vss)
+              *tanh(comp_slope*(V(vcp, vcn) - sigin_offset))
+         + 0.5*(vdd + vss);
+    i_qn = 0.5*(vdd - vss)
+              *tanh(comp_slope*(V(vcn, vcp) + sigin_offset))
+         + 0.5*(vdd + vss);
+  end
+  @(cross(i_clk - vth, dir_neg)) begin //disble
+    i_qp = 0; 
+    i_qn = 0; 
+  end
+
+  V(qp) <+ transition (i_qp ? vdd : vss, td, tt);
+  V(qn) <+ transition (i_qn ? vdd : vss, td, tt);
+end
+
+endmodule 
